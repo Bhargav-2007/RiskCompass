@@ -1,0 +1,45 @@
+INFO:     Will watch for changes in these directories: ['c:\\Users\\BHARGAV\\OneDrive\\Documents\\ChatGPT\\RiskCompass\\backend']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [29976] using WatchFiles
+C:\Users\BHARGAV\AppData\Roaming\Python\Python311\site-packages\pydantic\_internal\_config.py:322: UserWarning: Valid config keys have changed in V2:
+* 'orm_mode' has been renamed to 'from_attributes'
+  warnings.warn(message, UserWarning)
+C:\Users\BHARGAV\AppData\Roaming\Python\Python311\site-packages\pydantic\_internal\_fields.py:151: UserWarning: Field "model_version" has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+INFO:     Started server process [49492]
+INFO:     Waiting for application startup.
+2026-08-16 23:00:31,225 - main - INFO - Starting Dynamic Vulnerability Intelligence & Risk Scoring Platform
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'api\v1\routes.py'. Reloading...
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50262 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50264 - "GET /models HTTP/1.1" 404 Not Found
