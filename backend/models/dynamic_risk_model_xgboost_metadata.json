@@ -1,0 +1,32 @@
+{
+  "model_type": "xgboost",
+  "training_samples": 10000,
+  "feature_count": 22,
+  "feature_names": [
+    "cvss_normalized",
+    "epss_score",
+    "epss_logit",
+    "kev",
+    "asset_criticality_norm",
+    "internet_exposure",
+    "data_sensitivity_encoded",
+    "exploit_available",
+    "exploit_maturity_encoded",
+    "days_since_published",
+    "days_since_modified",
+    "threat_velocity_score",
+    "dark_web_mentions_log",
+    "exploit_code_available",
+    "business_impact_log",
+    "asset_type_encoded",
+    "cwe_freq_encoded",
+    "cvss_epss_interaction",
+    "kev_cvss_interaction",
+    "exploit_cvss_interaction",
+    "asset_exposure_interaction",
+    "epss_momentum"
+  ],
+  "training_date": "2026-08-17T03:43:30.968943",
+  "data_source": "synthetic",
+  "version": "1.0.0"
+}

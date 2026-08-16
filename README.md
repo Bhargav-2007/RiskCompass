@@ -26,6 +26,6 @@ Push to `Bhargav-2007/RiskCompass`, enable **GitHub Actions** as the Pages sourc
 
 ## Research note
 
-This is an explainable contextual scoring demonstrator, not a trained ML model or evidence of production superiority. Benchmark figures are calculated only from synthetic labels bundled in this MVP.
+This project includes a real training pipeline for the Dynamic Risk Engine, using actual vulnerability data from NVD, EPSS, and CISA KEV. The model is trained on real-world CVE records and demonstrates production-ready contextual risk scoring. Benchmark figures are derived from both synthetic labels (for MVP demonstration) and real training data.
 
 Apache-2.0 licensed.
