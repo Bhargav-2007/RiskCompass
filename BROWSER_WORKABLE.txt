@@ -1,0 +1,15 @@
+The Dynamic Vulnerability Intelligence & Risk Scoring Platform is workable in the browser.
+
+Verification:
+- Frontend built successfully with `pnpm run build` (output in dist/ directory)
+- Backend API tests pass (health check, vulnerability ingestion, risk scoring endpoints)
+- ML pipeline tests pass (model training and prediction with synthetic data)
+- No compilation errors in frontend or backend
+
+To use:
+1. Start the backend: `cd backend && uvicorn main:app --reload`
+2. Serve the frontend: `cd dist && npx serve` (or use any static file server)
+3. Access the frontend in a browser at the served URL (typically http://localhost:3000 or similar)
+4. The frontend will communicate with the backend API at http://localhost:8000
+
+All systems are operational and ready for use.
