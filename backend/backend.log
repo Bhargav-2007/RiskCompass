@@ -55,3 +55,9 @@ INFO:     127.0.0.1:65289 - "GET /v1/models HTTP/1.1" 404 Not Found
 INFO:     127.0.0.1:65291 - "GET /models HTTP/1.1" 404 Not Found
 INFO:     127.0.0.1:65289 - "GET /v1/models HTTP/1.1" 404 Not Found
 INFO:     127.0.0.1:65291 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64884 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64886 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64884 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64886 - "GET /models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64884 - "GET /v1/models HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64886 - "GET /models HTTP/1.1" 404 Not Found
