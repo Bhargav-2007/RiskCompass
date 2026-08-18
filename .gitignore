@@ -3,3 +3,6 @@ dist/
 coverage/
 .DS_Store
 .pnpm-store/
+# SQLite databases
+backend/*.db
+backend/*.log

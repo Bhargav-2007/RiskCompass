@@ -1,420 +1,277 @@
 """
-FastAPI API Endpoints for Dynamic Vulnerability Intelligence & Risk Scoring Platform
-Defines routes for vulnerability ingestion and risk analytics.
+API routes for vulnerability management.
 """
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Path
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
 from typing import List, Optional, Dict, Any
-from datetime import datetime, date
-from pydantic import BaseModel, Field
 import uuid
+from datetime import datetime, date
 
-# Initialize router
-router = APIRouter(prefix="/api/v1", tags=["vulnerability-risk"])
+from app.repository import (
+    get_vulnerability_by_cve,
+    create_vulnerability,
+    list_vulnerabilities,
+    get_asset,
+    create_asset,
+    list_assets,
+    get_asset_vulnerability,
+    create_asset_vulnerability,
+    update_asset_vulnerability,
+    list_asset_vulnerabilities,
+    get_risk_score_by_asset_vulnerability,
+    create_risk_score,
+    update_risk_score,
+    list_risk_scores,
+    create_threat_intelligence,
+    get_threat_intelligence_by_vulnerability
+)
+from app.db import database, vulnerabilities, assets, asset_vulnerabilities, risk_scores, threat_intelligence
 
-# =============================================================================
-# PYDANTIC MODELS FOR REQUEST/RESPONSE
-# =============================================================================
+router = APIRouter()
 
-# Vulnerability Models
-class VulnerabilityBase(BaseModel):
-    cve_id: str = Field(..., example="CVE-2023-12345")
-    cvss_v3_score: Optional[float] = Field(None, ge=0.0, le=10.0, example=7.5)
-    cvss_v3_vector: Optional[str] = Field(None, example="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
-    cvss_v4_score: Optional[float] = Field(None, ge=0.0, le=10.0)
-    cvss_v4_vector: Optional[str] = None
-    epss_score: Optional[float] = Field(None, ge=0.0, le=1.0, example=0.65)
-    epss_percentile: Optional[float] = Field(None, ge=0.0, le=1.0)
-    kev: bool = Field(False, example=False)
-    kev_date: Optional[date] = None
-    cwe_id: Optional[str] = Field(None, example="CWE-79")
-    description: Optional[str] = None
-    references: Optional[List[Dict[str, str]]] = None
-    exploit_available: bool = Field(False)
-    exploit_maturity: Optional[str] = Field(None, example="functional")  # none, proof-of-concept, functional, weaponized
-    published_date: datetime
-    modified_date: datetime
 
-class VulnerabilityCreate(VulnerabilityBase):
-    pass
-
-class VulnerabilityResponse(VulnerabilityBase):
-    id: uuid.UUID
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        orm_mode = True
-
-# Asset Models
-class AssetBase(BaseModel):
-    asset_tag: Optional[str] = Field(None, example="ASSET-00123")
-    hostname: Optional[str] = Field(None, example="web-server-01")
-    ip_address: Optional[str] = Field(None, example="192.168.1.100")
-    mac_address: Optional[str] = None
-    asset_type: str = Field(..., example="server")  # server, web-app, database, cloud-storage, api
-    os: Optional[str] = Field(None, example="Ubuntu 20.04")
-    os_version: Optional[str] = Field(None, example="20.04.5 LTS")
-    internet_exposure: bool = Field(False)
-    data_sensitivity: str = Field(..., example="confidential")  # public, internal, confidential, restricted
-    business_importance: int = Field(..., ge=1, le=5, example=4)  # 1-5 scale
-    owner_team: Optional[str] = Field(None, example="Platform Team")
-    owner_email: Optional[str] = Field(None, example="platform@example.com")
-    cloud_provider: Optional[str] = Field(None, example="aws")  # aws, azure, gcp, on-premise
-    cloud_region: Optional[str] = Field(None, example="us-east-1")
-    cloud_instance_type: Optional[str] = Field(None, example="t3.medium")
-    tags: Optional[Dict[str, Any]] = Field(default_factory=dict)
-
-class AssetCreate(AssetBase):
-    pass
-
-class AssetResponse(AssetBase):
-    id: uuid.UUID
-    asset_criticality_score: float
-    created_at: datetime
-    updated_at: datetime
-    last_scanned: Optional[datetime]
-
-    class Config:
-        orm_mode = True
-
-# Asset-Vulnerability Mapping
-class AssetVulnerabilityBase(BaseModel):
-    asset_id: uuid.UUID
-    vulnerability_id: uuid.UUID
-    status: str = Field("open", example="open")  # open, patched, mitigated, false-positive, risk-accepted
-    detected_at: Optional[datetime] = None
-    patched_at: Optional[datetime] = None
-    asset_specific_cvss: Optional[float] = Field(None, ge=0.0, le=10.0)
-    exploitability_adjustment: Optional[float] = Field(None, ge=0.0, le=1.0)
-    on_attack_path_to_crown_jewel: bool = Field(False)
-    attack_path_probability: Optional[float] = Field(None, ge=0.0, le=1.0)
-    asset_specific_business_impact: Optional[float] = Field(None, ge=0.0)  # in USD
-
-class AssetVulnerabilityCreate(AssetVulnerabilityBase):
-    pass
-
-class AssetVulnerabilityResponse(AssetVulnerabilityBase):
-    id: uuid.UUID
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        orm_mode = True
-
-# Risk Score Models
-class RiskScoreBase(BaseModel):
-    # Component scores (0-100)
-    cvss_base_score: float = Field(..., ge=0.0, le=100.0)
-    epss_component: float = Field(..., ge=0.0, le=100.0)
-    kev_component: float = Field(..., ge=0.0, le=100.0)
-    asset_criticality_component: float = Field(..., ge=0.0, le=100.0)
-    exposure_component: float = Field(..., ge=0.0, le=100.0)
-    exploit_availability_component: float = Field(..., ge=0.0, le=100.0)
-    threat_activity_component: float = Field(..., ge=0.0, le=100.0)
-    vulnerability_age_component: float = Field(..., ge=0.0, le=100.0)
-    business_impact_component: float = Field(..., ge=0.0, le=100.0)
-    # ML model output
-    ml_risk_score: float = Field(..., ge=0.0, le=100.0)
-    # Final score and tier
-    dynamic_risk_score: float = Field(..., ge=0.0, le=100.0, example=85.5)
-    priority_tier: str = Field(..., example="P0")  # P0, P1, P2, P3
-    # Explainability
-    top_contributing_factors: Optional[List[Dict[str, Any]]] = None
-    shap_values: Optional[Dict[str, float]] = None
-    natural_language_explanation: Optional[str] = None
-    # Feedback
-    actual_exploited: Optional[bool] = None
-    exploited_at: Optional[datetime] = None
-
-class RiskScoreCreate(RiskScoreBase):
-    asset_vulnerability_id: uuid.UUID
-
-class RiskScoreResponse(RiskScoreBase):
-    id: uuid.UUID
-    asset_vulnerability_id: uuid.UUID
-    calculated_at: datetime
-    model_version: str
-    calculation_duration_ms: int
-
-    class Config:
-        orm_mode = True
-
-# Analytics Models
-class RiskSummary(BaseModel):
-    total_vulnerabilities: int
-    p0_count: int
-    p1_count: int
-    p2_count: int
-    p3_count: int
-    average_risk_score: float
-    max_risk_score: float
-    trending_up: int  # Count of vulnerabilities with increasing risk
-    trending_down: int  # Count of vulnerabilities with decreasing risk
-
-class TopRiskItem(BaseModel):
-    id: uuid.UUID
-    cve_id: str
-    asset_hostname: str
-    dynamic_risk_score: float
-    priority_tier: str
-    business_impact_usd: Optional[float] = None
-    days_since_published: int
-
-class RiskTrendsPoint(BaseModel):
-    date: date
-    average_risk_score: float
-    p0_count: int
-    p1_count: int
-
-# =============================================================================
-# VULNERABILITY INGESTION ENDPOINTS
-# =============================================================================
-
-@router.post("/vulnerabilities/", response_model=VulnerabilityResponse, status_code=201)
-async def create_vulnerability(
-    vulnerability: VulnerabilityCreate,
-):
-    """
-    Ingest a single vulnerability record.
-    """
-    # In practice: check if CVE exists, update if newer, else create
-    # For now, we'll simulate creation
-    vuln_id = uuid.uuid4()
-    return VulnerabilityResponse(
-        id=vuln_id,
-        **vulnerability.dict(),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
-    )
-
-@router.post("/vulnerabilities/batch", response_model=List[VulnerabilityResponse], status_code=201)
-async def create_vulnerabilities_batch(
-    vulnerabilities: List[VulnerabilityCreate],
-    background_tasks: BackgroundTasks,
-):
-    """
-    Ingest a batch of vulnerability records (e.g., from NVD feed).
-    Triggers background risk scoring for new/updated vulnerabilities.
-    """
-    # Simulate batch creation
-    results = []
-    for vuln in vulnerabilities:
-        vuln_id = uuid.uuid4()
-        results.append(VulnerabilityResponse(
-            id=vuln_id,
-            **vulnerability.dict(),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        ))
-    
-    # Trigger background task for risk scoring (would be implemented with Celery)
-    background_tasks.add_task(trigger_risk_rescoring, [v.cve_id for v in vulnerabilities])
-    
-    return results
-
-@router.get("/vulnerabilities/{cve_id}", response_model=VulnerabilityResponse)
-async def get_vulnerability(
-    cve_id: str = Path(..., example="CVE-2023-12345"),
-):
-    """
-    Retrieve a vulnerability by its CVE ID.
-    """
-    # Simulate retrieval - return mock data for any CVE ID
-    # In practice: query database for CVE
-    return VulnerabilityResponse(
-        id=uuid.uuid4(),
-        cve_id=cve_id,
-        cvss_v3_score=7.5,
-        epss_score=0.65,
-        kev=False,
-        published_date=datetime.utcnow(),
-        modified_date=datetime.utcnow(),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
-    )
-
-@router.get("/vulnerabilities/", response_model=List[VulnerabilityResponse])
-async def list_vulnerabilities(
-    kev: Optional[bool] = Query(None, description="Filter by KEV status"),
-    min_epss: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum EPSS score"),
-    max_epss: Optional[float] = Query(None, ge=0.0, le=1.0, description="Maximum EPSS score"),
-    min_cvss: Optional[float] = Query(None, ge=0.0, le=10.0, description="Minimum CVSS score"),
-    max_cvss: Optional[float] = Query(None, ge=0.0, le=10.0, description="Maximum CVSS score"),
-    cwe_id: Optional[str] = Query(None, description="Filter by CWE ID"),
-    limit: int = Query(100, ge=1, le=1000, description="Number of results to return"),
-    offset: int = Query(0, ge=0, description="Offset for pagination"),
-):
-    """
-    List vulnerabilities with filtering and pagination.
-    """
-    # Simulate list - in practice would query with filters
-    # Return empty list for now
-    return []
-
-# =============================================================================
-# RISK ANALYTICS ENDPOINTS
-# =============================================================================
-
-@router.get("/risk/summary", response_model=RiskSummary)
-async def get_risk_summary():
-    """
-    Get summary statistics of risk scores across all assets.
-    """
-    # Simulate summary data
-    return RiskSummary(
-        total_vulnerabilities=1245,
-        p0_count=34,
-        p1_count=89,
-        p2_count=256,
-        p3_count=866,
-        average_risk_score=42.3,
-        max_risk_score=98.7,
-        trending_up=12,
-        trending_down=45
-    )
-
-@router.get("/risk/top", response_model=List[TopRiskItem])
-async def get_top_risk_vulnerabilities(
-    limit: int = Query(10, ge=1, le=100, description="Number of top risks to return"),
-    priority_tier: Optional[str] = Query(None, regex="^(P0|P1|P2|P3)$", description="Filter by priority tier"),
-):
-    """
-    Get top N vulnerabilities by risk score.
-    """
-    # Simulate top risks
-    top_risks = []
-    for i in range(min(limit, 5)):  # Return up to 5 for demo
-        top_risks.append(TopRiskItem(
-            id=uuid.uuid4(),
-            cve_id=f"CVE-2023-{1000+i:05d}",
-            asset_hostname=f"web-server-{i+1:02d}",
-            dynamic_risk_score=95.0 - (i * 2.5),
-            priority_tier="P0" if i < 2 else "P1",
-            business_impact_usd=2500000.0 + (i * 500000),
-            days_since_published=30 + (i * 10)
-        ))
-    return top_risks
-
-@router.get("/risk/trends", response_model=List[RiskTrendsPoint])
-async def get_risk_trends(
-    days: int = Query(30, ge=1, le=365, description="Number of days to look back"),
-):
-    """
-    Get risk score trends over time (daily averages).
-    """
-    # Simulate trend data
-    from datetime import timedelta
-    trends = []
-    base_score = 40.0
-    for i in range(days):
-        date_point = date.today() - timedelta(days=days-i-1)
-        # Simulate some variation
-        score = base_score + (i % 7) - 3
-        trends.append(RiskTrendsPoint(
-            date=date_point,
-            average_risk_score=max(0, min(100, score)),
-            p0_count=max(0, int((score - 70) / 5)) if score > 70 else 0,
-            p1_count=max(0, int((score - 50) / 3)) if score > 50 else 0
-        ))
-    return trends
-
-@router.get("/assets/{asset_id}/risk", response_model=List[RiskScoreResponse])
-async def get_asset_risk_details(
-    asset_id: uuid.UUID = Path(..., example="123e4567-e89b-12d3-a456-426614174000"),
-    limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0),
-):
-    """
-    Get risk scores for all vulnerabilities associated with a specific asset.
-    """
-    # Simulate asset risk details
-    # In practice: join asset_vulnerabilities, vulnerabilities, risk_scores
-    risks = []
-    for i in range(3):  # Return 3 sample risks
-        risks.append(RiskScoreResponse(
-            id=uuid.uuid4(),
-            asset_vulnerability_id=uuid.uuid4(),
-            cvss_base_score=75.0,
-            epss_component=65.0,
-            kev_component=20.0,
-            asset_criticality_component=80.0,
-            exposure_component=90.0,
-            exploit_availability_component=70.0,
-            threat_activity_component=60.0,
-            vulnerability_age_component=30.0,
-            business_impact_component=85.0,
-            ml_risk_score=78.5,
-            dynamic_risk_score=72.3,
-            priority_tier="P1",
-            top_contributing_factors=[
-                {"factor": "Internet Exposure", "percentage": 25},
-                {"factor": "Business Impact", "percentage": 20},
-                {"factor": "EPSS Score", "percentage": 18}
-            ],
-            natural_language_explanation="This vulnerability is prioritized due to high asset criticality, internet exposure, and significant business impact potential.",
-            calculated_at=datetime.utcnow(),
-            model_version="xgboost-v1.2.0",
-            calculation_duration_ms=125
-        ))
-    return risks
-
-@router.post("/risk/recalculate", status_code=202)
-async def trigger_risk_recalculation(
-    background_tasks: BackgroundTasks,
-    asset_ids: Optional[List[uuid.UUID]] = Query(None, description="List of asset IDs to recalculate (if empty, recalculate all)"),
-    cve_ids: Optional[List[str]] = Query(None, description="List of CVE IDs to recalculate (if empty, recalculate all)"),
-):
-    """
-    Trigger recalculation of risk scores for specified assets or vulnerabilities.
-    Typically called when new threat intelligence, EPSS updates, or asset changes occur.
-    """
-    # Determine scope
-    scope = "all"
-    if asset_ids:
-        scope = f"assets:{len(asset_ids)}"
-    elif cve_ids:
-        scope = f"cves:{len(cve_ids)}"
-    
-    # Add background task for recalculation (would be implemented with Celery)
-    background_tasks.add_task(trigger_risk_rescoring, asset_ids=asset_ids, cve_ids=cve_ids)
-    
-    return {
-        "message": f"Risk recalculation triggered for scope: {scope}",
-        "status": "processing"
-    }
-
-# =============================================================================
-# BACKGROUND TASK FUNCTIONS (PLACEHOLDERS)
-# =============================================================================
-
-async def trigger_risk_rescoring(
-    asset_ids: Optional[List[uuid.UUID]] = None,
-    cve_ids: Optional[List[str]] = None
-):
-    """
-    Background task to recalculate risk scores.
-    In practice, this would:
-    1. Query for affected asset-vulnerability pairs
-    2. Extract features for each pair
-    3. Run ML model inference
-    4. Update risk_scores table
-    5. Send notifications for priority changes
-    """
-    # Placeholder implementation
-    print(f"Starting risk rescoring for assets: {asset_ids}, CVEs: {cve_ids}")
-    # Simulate work
-    import asyncio
-    await asyncio.sleep(2)
-    print("Risk rescoring completed")
-
-# =============================================================================
-# HEALTH CHECK
-# =============================================================================
-
-@router.get("/health")
+# Vulnerability endpoints
+@router.get("/health", tags=["health"])
 async def health_check():
     """
     Health check endpoint.
     """
-    return {"status": "healthy", "timestamp": datetime.utcnow()}
+    return {"status": "healthy"}
+
+
+@router.get("/vulnerabilities/", response_model=List[Dict[str, Any]])
+async def read_vulnerabilities(
+    kev: Optional[bool] = Query(None, description="Filter by KEV status"),
+    min_epss: Optional[float] = Query(None, description="Minimum EPSS score"),
+    max_epss: Optional[float] = Query(None, description="Maximum EPSS score"),
+    min_cvss: Optional[float] = Query(None, description="Minimum CVSS v3 score"),
+    max_cvss: Optional[float] = Query(None, description="Maximum CVSS v3 score"),
+    cwe_id: Optional[str] = Query(None, description="Filter by CWE ID"),
+    limit: int = Query(100, description="Limit number of results"),
+    offset: int = Query(0, description="Offset for pagination")
+):
+    """
+    List vulnerabilities with optional filtering.
+    """
+    vulns = await list_vulnerabilities(
+        kev=kev,
+        min_epss=min_epss,
+        max_epss=max_epss,
+        min_cvss=min_cvss,
+        max_cvss=max_cvss,
+        cwe_id=cwe_id,
+        limit=limit,
+        offset=offset
+    )
+    return vulns
+
+
+@router.post("/vulnerabilities/", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+async def create_vulnerability_endpoint(vulnerability: Dict[str, Any]):
+    """
+    Create a new vulnerability.
+    """
+    # Check if vulnerability already exists
+    existing = await get_vulnerability_by_cve(vulnerability["cve_id"])
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Vulnerability with CVE ID {vulnerability['cve_id']} already exists"
+        )
+    
+    # Create vulnerability
+    vuln_id = await create_vulnerability(vulnerability)
+    
+    # Return created vulnerability
+    created = await get_vulnerability_by_cve(vulnerability["cve_id"])
+    return created
+
+
+@router.get("/vulnerabilities/{cve_id}", response_model=Dict[str, Any])
+async def read_vulnerability(cve_id: str = Path(..., description="CVE ID of the vulnerability")):
+    """
+    Get a specific vulnerability by CVE ID.
+    """
+    vulnerability = await get_vulnerability_by_cve(cve_id)
+    if not vulnerability:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Vulnerability with CVE ID {cve_id} not found"
+        )
+    return vulnerability
+
+
+# Asset endpoints
+@router.get("/assets/", response_model=List[Dict[str, Any]])
+async def read_assets(
+    asset_type: Optional[str] = Query(None, description="Filter by asset type"),
+    internet_exposure: Optional[bool] = Query(None, description="Filter by internet exposure"),
+    limit: int = Query(100, description="Limit number of results"),
+    offset: int = Query(0, description="Offset for pagination")
+):
+    """
+    List assets with optional filtering.
+    """
+    assets_list = await list_assets(
+        asset_type=asset_type,
+        internet_exposure=internet_exposure,
+        limit=limit,
+        offset=offset
+    )
+    return assets_list
+
+
+@router.post("/assets/", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+async def create_asset_endpoint(asset: Dict[str, Any]):
+    """
+    Create a new asset.
+    """
+    asset_id = await create_asset(asset)
+    created = await get_asset(asset_id)
+    return created
+
+
+@router.get("/assets/{asset_id}", response_model=Dict[str, Any])
+async def read_asset(asset_id: uuid.UUID = Path(..., description="Asset ID")):
+    """
+    Get a specific asset by ID.
+    """
+    asset_obj = await get_asset(asset_id)
+    if not asset_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Asset with ID {asset_id} not found"
+        )
+    return asset_obj
+
+
+# Asset-Vulnerability endpoints
+@router.post("/asset-vulnerabilities/", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+async def create_asset_vulnerability_endpoint(av: Dict[str, Any]):
+    """
+    Create a new asset-vulnerability link.
+    """
+    av_id = await create_asset_vulnerability(av)
+    created = await get_asset_vulnerability(av["asset_id"], av["vulnerability_id"])
+    return created
+
+
+@router.get("/asset-vulnerabilities/", response_model=List[Dict[str, Any]])
+async def read_asset_vulnerabilities(
+    asset_id: Optional[uuid.UUID] = Query(None, description="Filter by asset ID"),
+    vulnerability_id: Optional[uuid.UUID] = Query(None, description="Filter by vulnerability ID"),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    limit: int = Query(100, description="Limit number of results"),
+    offset: int = Query(0, description="Offset for pagination")
+):
+    """
+    List asset-vulnerability links with optional filtering.
+    """
+    av_list = await list_asset_vulnerabilities(
+        asset_id=asset_id,
+        vulnerability_id=vulnerability_id,
+        status=status,
+        limit=limit,
+        offset=offset
+    )
+    return av_list
+
+
+@router.patch("/asset-vulnerabilities/{av_id}", response_model=Dict[str, Any])
+async def update_asset_vulnerability_endpoint(
+    av_id: uuid.UUID = Path(..., description="Asset-Vulnerability ID"),
+    update_data: Dict[str, Any] = None
+):
+    """
+    Update an asset-vulnerability link.
+    """
+    await update_asset_vulnerability(av_id, update_data or {})
+    # Note: We don't have a direct get by av_id, but we could add one
+    # For now, return a simple success message
+    return {"message": "Asset-vulnerability updated successfully"}
+
+
+# Risk score endpoints
+@router.get("/risk/summary", response_model=Dict[str, Any])
+async def get_risk_summary():
+    """
+    Get a summary of risk scores.
+    """
+    # This is a simplified version - in practice, you'd want to use aggregate queries
+    risk_scores_list = await list_risk_scores(limit=1000)
+    
+    total = len(risk_scores_list)
+    p0_count = len([rs for rs in risk_scores_list if rs.get("priority_tier") == "P0"])
+    p1_count = len([rs for rs in risk_scores_list if rs.get("priority_tier") == "P1"])
+    p2_count = len([rs for rs in risk_scores_list if rs.get("priority_tier") == "P2"])
+    p3_count = len([rs for rs in risk_scores_list if rs.get("priority_tier") == "P3"])
+    
+    avg_risk = sum([rs.get("dynamic_risk_score", 0) for rs in risk_scores_list]) / total if total > 0 else 0
+    
+    return {
+        "total_vulnerabilities": total,
+        "p0_count": p0_count,
+        "p1_count": p1_count,
+        "p2_count": p2_count,
+        "p3_count": p3_count,
+        "average_risk_score": round(avg_risk, 2)
+    }
+
+
+@router.get("/risk/top", response_model=List[Dict[str, Any]])
+async def get_top_risks(limit: int = Query(10, description="Number of top risks to return")):
+    """
+    Get top risk vulnerabilities.
+    """
+    # Get all risk scores sorted by dynamic_risk_score descending
+    risk_scores_list = await list_risk_scores(limit=1000)  # Get a large number to sort
+    sorted_risks = sorted(risk_scores_list, key=lambda x: x.get("dynamic_risk_score", 0), reverse=True)
+    top_risks = sorted_risks[:limit]
+    
+    # Enrich with vulnerability and asset details
+    enriched_risks = []
+    for risk in top_risks:
+        # Get asset vulnerability link
+        av_id = risk.get("asset_vulnerability_id")
+        if av_id:
+            # We don't have a direct get by av_id, but we can fetch from asset_vulnerabilities table
+            # For simplicity, we'll just return the risk score with the ID
+            # In a real implementation, you'd want to join with vulnerabilities and assets
+            enriched_risks.append(risk)
+    
+    return enriched_risks
+
+
+# Threat intelligence endpoints
+@router.post("/threat-intelligence/", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+async def create_threat_intelligence_endpoint(ti: Dict[str, Any]):
+    """
+    Create a new threat intelligence record.
+    """
+    ti_id = await create_threat_intelligence(ti)
+    created = await get_threat_intelligence_by_vulnerability(ti["vulnerability_id"])
+    return created[0] if created else {}
+
+
+# Additional endpoints for ML model integration (placeholders)
+@router.post("/ml/train", response_model=Dict[str, Any])
+async def train_model_endpoint():
+    """
+    Trigger ML model training (placeholder).
+    """
+    # In practice, this would trigger a background job
+    return {"message": "Model training initiated"}
+
+
+@router.post("/ml/predict/{av_id}", response_model=Dict[str, Any])
+async def predict_risk_endpoint(av_id: uuid.UUID = Path(..., description="Asset-Vulnerability ID")):
+    """
+    Predict risk for an asset-vulnerability pair (placeholder).
+    """
+    # In practice, this would use the ML model to predict risk
+    return {
+        "asset_vulnerability_id": str(av_id),
+        "ml_risk_score": 75.5,
+        "dynamic_risk_score": 78.2,
+        "priority_tier": "P1"
+    }

@@ -1,3 +1,6 @@
+from app.db import create_tables
+create_tables()
+
 from fastapi.testclient import TestClient
 from main import app
 

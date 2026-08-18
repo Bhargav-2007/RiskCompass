@@ -12,6 +12,9 @@ from contextlib import asynccontextmanager
 # Import API routes
 from api.v1.routes import router as api_v1_router
 
+# Import database connection
+from app.db import connect_to_database, disconnect_from_database, create_tables
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -44,9 +47,14 @@ async def lifespan(app: FastAPI):
     """
     logger.info("Starting Dynamic Vulnerability Intelligence & Risk Scoring Platform")
     
-    # Initialize database connections, load ML models, etc.
+    # Initialize database connections
+    await connect_to_database()
+    
+    # Create tables if they don't exist
+    create_tables()
+    
+    # Load ML models, etc.
     # In practice: 
-    # - Connect to PostgreSQL
     # - Load pre-trained ML models from disk
     # - Initialize Redis connection for caching
     # - Start background workers (Celery)
@@ -55,6 +63,7 @@ async def lifespan(app: FastAPI):
     
     logger.info("Shutting down platform")
     # Cleanup resources
+    await disconnect_from_database()
     # - Close database connections
     # - Shutdown background workers
 
@@ -84,8 +93,8 @@ app.add_middleware(
     allowed_hosts=["*"]  # In production, specify actual hosts
 )
 
-# Include API routes
-app.include_router(api_v1_router)
+# Include API routes with version prefix
+app.include_router(api_v1_router, prefix="/api/v1")
 
 # Root endpoint
 @app.get("/", tags=["root"])

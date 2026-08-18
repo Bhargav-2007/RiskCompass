@@ -23,14 +23,19 @@ def test_dynamic_risk_engine():
         'cvss_v3_score': [7.5, 9.0, 4.2],
         'epss_score': [0.65, 0.85, 0.25],
         'kev': [False, True, False],
-        'publish_date': ['2023-01-15', '2023-02-20', '2023-03-10'],
         'asset_criticality': [0.8, 0.9, 0.3],
         'internet_exposure': [True, True, False],
         'data_sensitivity': ['confidential', 'restricted', 'public'],
-        'business_impact': [2500000, 5000000, 500000],
+        'business_impact_usd': [2500000, 5000000, 500000],
         'exploit_available': [False, True, False],
-        'threat_activity': [0.6, 0.9, 0.2],
-        'vuln_age_days': [45, 15, 120]
+        'exploit_maturity': ['none', 'functional', 'none'],
+        'threat_velocity_score': [0.6, 0.9, 0.2],
+        'dark_web_mentions': [0, 0, 0],
+        'exploit_code_available': [False, True, False],
+        'days_since_published': [45, 15, 120],
+        'days_since_modified': [45, 15, 120],
+        'asset_type': ['server', 'web-app', 'database'],
+        'cwe_id': ['CWE-79', 'CWE-89', 'CWE-20']
     })
     
     # Test feature engineering
@@ -55,8 +60,7 @@ def test_dynamic_risk_engine():
         
         # Test SHAP explanation
         print("  Testing SHAP explanation...")
-        explanations = engine.explain_predictions(features[:1])  # Explain first sample
-        print(f"  SHAP values shape: {explanations['shap_values'].shape}")
+        explanations = engine.explain_prediction(features[:1])  # Explain first sample
         print(f"  Expected value: {explanations['expected_value']}")
         
         print("✓ DynamicRiskEngine tests passed")
